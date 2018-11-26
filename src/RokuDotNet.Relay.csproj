@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>netcoreapp2.1</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="RokuDotNet.Client" Version="0.5.0" />
+    <PackageReference Include="RokuDotNet.Proxy" Version="0.1.0" />
+    <PackageReference Include="RokuDotNet.Proxy.IoTHub" Version="0.1.0" />
+  </ItemGroup>
+
+</Project>
