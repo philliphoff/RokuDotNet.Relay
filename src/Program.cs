@@ -1,4 +1,5 @@
-﻿using RokuDotNet.Client;
+﻿using CommandLine;
+using RokuDotNet.Client;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
@@ -7,7 +8,23 @@ namespace RokuDotNet.Relay
 {
     class Program
     {
-        static async Task Main(string[] args)
+        [Verb("list", HelpText = "List Roku devices on the local network.")]
+        internal sealed class ListOptions
+        {
+        }
+
+        public static Task Main(string[] args)
+        {
+            return Parser
+                .Default
+                .ParseArguments<ListOptions>(args)
+                .MapResult(
+                    ListDevicesAsync,
+                    errs => Task.FromException(new InvalidOperationException(""))
+                );
+        }
+
+        private static async Task ListDevicesAsync(ListOptions options)
         {
             var discoveryClient = new UdpRokuDeviceDiscoveryClient();
 
