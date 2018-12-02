@@ -42,19 +42,12 @@ namespace RokuDotNet.Relay
             {
                 var discoverTask = discoveryClient.DiscoverDevicesAsync(func, cancellationTokenSource.Token);
 
-                Console.WriteLine("Press 'q' to quit...");
+                Console.WriteLine("Searching for Roku devices...");
+                Console.WriteLine("Press <ENTER> to quit.");
                 
-                while (true)
-                {
-                    var key = (char)Console.Read();
+                Console.ReadLine();
 
-                    if (key == 'q')
-                    {
-                        cancellationTokenSource.Cancel();
-
-                        break;
-                    }
-                }
+                cancellationTokenSource.Cancel();
 
                 try
                 {
