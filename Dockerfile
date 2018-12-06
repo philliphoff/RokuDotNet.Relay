@@ -1,4 +1,6 @@
 FROM microsoft/dotnet:2.1-runtime AS base
+ENV ROKU_RELAY_SERIALNUMBER="<SERIAL NUMBER>"
+ENV ROKU_RELAY_CONNECTIONSTRING=="<CONNECTION STRING>"
 WORKDIR /app
 
 FROM microsoft/dotnet:2.1-sdk AS build
@@ -15,4 +17,4 @@ RUN dotnet publish "RokuDotNet.Relay.csproj" -c Release -o /app
 FROM base AS final
 WORKDIR /app
 COPY --from=publish /app .
-ENTRYPOINT ["dotnet", "RokuDotNet.Relay.dll"]
+ENTRYPOINT exec dotnet RokuDotNet.Relay.dll listen -s $ROKU_RELAY_SERIALNUMBER -c $ROKU_RELAY_CONNECTIONSTRING
