@@ -2,7 +2,9 @@
 using RokuDotNet.Client;
 using RokuDotNet.Proxy;
 using RokuDotNet.Proxy.IoTHub;
+using Serilog;
 using System;
+using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -25,6 +27,12 @@ namespace RokuDotNet.Relay
             public string ConnectionString { get; set; }
         }
 
+        private static ILogger Logger =
+            new LoggerConfiguration()
+                .WriteTo
+                .Console()
+                .CreateLogger();
+
         public static Task Main(string[] args)
         {
             return Parser
@@ -44,7 +52,7 @@ namespace RokuDotNet.Relay
             Func<HttpDiscoveredDeviceContext, Task<bool>> func =
                 async (HttpDiscoveredDeviceContext context) =>
                 {
-                    Console.WriteLine($"Found device: {context.SerialNumber}");
+                    Logger.Information("Found device {SerialNumber} at {Location}", context.SerialNumber, context.Device.Location);
 
                     var details = await context.Device.Query.GetDeviceInfoAsync();
 
@@ -76,29 +84,63 @@ namespace RokuDotNet.Relay
         private static async Task ListenAsync(ListenOptions options)
         {
             using (var cts = new CancellationTokenSource())
+            using (var httpHandler = new HttpClientHandler())
+            using (var consoleLoggingHandler = new HttpLoggingHandler(httpHandler, Logger))
+            using (var deviceLock = new SemaphoreSlim(1, 1))
             {
-                Func<string, CancellationToken, Task<IRokuDevice>> deviceMapFunc =
-                    (_, __) =>
-                    {
-                        var discoveryClient = new UdpRokuDeviceDiscoveryClient();
+                IRokuDevice device = null;
 
-                        return discoveryClient.DiscoverFirstDeviceAsync();
+                Func<string, CancellationToken, Task<IRokuDevice>> deviceMapFunc =
+                    async (string deviceId, CancellationToken cancellationToken) =>
+                    {
+                        // NOTE: IoTHubRokuRpcServer allows only a single device per server,
+                        //       so there's technically no mapping to perform.
+
+                        if (device == null)
+                        {
+                            await deviceLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+
+                            try
+                            {
+                                if (device == null)
+                                {
+                                    var discoveryClient = new UdpRokuDeviceDiscoveryClient(consoleLoggingHandler);
+
+                                    device = await discoveryClient.DiscoverSpecificDeviceAsync(options.SerialNumber, cancellationToken).ConfigureAwait(false);
+                                }
+                            }
+                            finally
+                            {
+                                deviceLock.Release();
+                            }
+                        }
+
+                        return device;
                     };
 
-                var handler = new RokuRpcServerHandler(deviceMapFunc);
-                var server = new IoTHubRokuRpcServer(options.ConnectionString, handler);
+                var server =
+                    new IoTHubRokuRpcServer(
+                        options.ConnectionString,
+                        new RpcLoggingHandler(
+                            new RokuRpcServerHandler(deviceMapFunc),
+                            Logger));
 
                 await server.StartListeningAsync(cts.Token);
 
                 try
                 {
-                    Console.WriteLine("Listening for device commands (press <ENTER> to quit)...");
+                    Console.WriteLine("Listening for device \"{0}\" commands (press <ENTER> to quit)...", options.SerialNumber);
 
                     Console.ReadLine();
                 }
                 finally
                 {
                     await server.StopListeningAsync(cts.Token);
+
+                    if (device != null)
+                    {
+                        device.Dispose();
+                    }
                 }
             }
         }
